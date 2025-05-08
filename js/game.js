@@ -1,784 +1,643 @@
-/**
- * Futuristic Tic-Tac-Toe Game
- * 
- * A modern implementation of the classic game with pause/resume functionality
- * and futuristic UI design with background music
- */
+/* Futuristic Tic-Tac-Toe Game Styles */
 
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize AdMob
-    let interstitialAd = null;
-    
-    // Initialize banner ad
-    (adsbygoogle = window.adsbygoogle || []).push({});
-    
-    // Setup interstitial ad
-    function initializeInterstitialAd() {
-        if (typeof google !== 'undefined' && google.ima) {
-            const adContainer = document.createElement('div');
-            adContainer.style.position = 'absolute';
-            adContainer.style.display = 'none';
-            document.body.appendChild(adContainer);
-            
-            const adDisplayContainer = new google.ima.AdDisplayContainer(adContainer);
-            adDisplayContainer.initialize();
-            
-            const adsLoader = new google.ima.AdsLoader(adDisplayContainer);
-            const adsRequest = new google.ima.AdsRequest();
-            adsRequest.adTagUrl = 'https://googleads.g.doubleclick.net/pagead/ads?ad_type=video&client=ca-pub-9474678817392803&slotname=3267246419';
-            
-            adsLoader.requestAds(adsRequest);
-            
-            adsLoader.addEventListener(
-                google.ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED,
-                function(adsManagerLoadedEvent) {
-                    interstitialAd = adsManagerLoadedEvent.getAdsManager(adContainer);
-                }
-            );
-        }
-    }
-    
-    // Show interstitial ad
-    function showInterstitialAd() {
-        if (interstitialAd) {
-            try {
-                interstitialAd.init(window.innerWidth, window.innerHeight, google.ima.ViewMode.NORMAL);
-                interstitialAd.start();
-            } catch (adError) {
-                console.error("AdError:", adError);
-            }
-        }
-    }
-    
-    // Try to initialize ads after user interaction
-    setTimeout(() => {
-        initializeInterstitialAd();
-    }, 1000);
-    
-    // Game audio setup using Tone.js
-    const synth = new Tone.Synth({
-        oscillator: {
-            type: 'sine'
-        },
-        envelope: {
-            attack: 0.005,
-            decay: 0.1,
-            sustain: 0.3,
-            release: 0.8
-        }
-    }).toDestination();
+:root {
+    /* Futuristic Color Palette */
+    --primary-bg: #0a0e17;
+    --secondary-bg: #151c2e;
+    --accent-blue: #00c2ff;
+    --accent-purple: #c044ec;
+    --accent-pink: #ff007c;
+    --accent-green: #00ffa3;
+    --text-primary: #ffffff;
+    --text-secondary: #a2b4cf;
+    --grid-line: rgba(0, 194, 255, 0.6);
+    --x-color: var(--accent-pink);
+    --o-color: var(--accent-green);
+    --panel-bg: rgba(21, 28, 46, 0.8);
+    --panel-border: rgba(0, 194, 255, 0.3);
+}
 
-    const fxSynth = new Tone.FMSynth({
-        harmonicity: 3,
-        modulationIndex: 10,
-        oscillator: {
-            type: 'sine'
-        },
-        envelope: {
-            attack: 0.001,
-            decay: 0.1,
-            sustain: 0.1,
-            release: 0.5
-        },
-        modulation: {
-            type: 'sine'
-        },
-        modulationEnvelope: {
-            attack: 0.001,
-            decay: 0.5,
-            sustain: 0.2,
-            release: 0.1
-        }
-    }).toDestination();
-    
-    // Background music setup
-    const backgroundMusic = new Tone.PolySynth(Tone.Synth, {
-        oscillator: {
-            type: 'sine'
-        },
-        envelope: {
-            attack: 0.02,
-            decay: 0.1,
-            sustain: 0.3,
-            release: 1
-        }
-    }).toDestination();
-    
-    // Create reverb effect for ambient sound
-    const reverb = new Tone.Reverb({
-        decay: 5,
-        wet: 0.6
-    }).toDestination();
-    
-    // Connect background music to reverb
-    backgroundMusic.connect(reverb);
-    
-    // Set volume for background music (lower than game sounds)
-    backgroundMusic.volume.value = -20;
+/* Base styles */
+body {
+    font-family: 'Rajdhani', sans-serif;
+    background-color: var(--primary-bg);
+    background-image: 
+        radial-gradient(circle at 10% 20%, rgba(0, 194, 255, 0.05) 0%, transparent 20%),
+        radial-gradient(circle at 90% 80%, rgba(192, 68, 236, 0.05) 0%, transparent 20%),
+        radial-gradient(circle at 50% 50%, rgba(0, 255, 163, 0.03) 0%, transparent 70%);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    padding: 0;
+    margin: 0;
+}
 
-    // Game elements
-    const cells = document.querySelectorAll('.grid-cell');
-    const statusMessage = document.getElementById('status-message');
-    const pauseBtn = document.getElementById('pause-btn');
-    const resumeBtn = document.getElementById('resume-btn');
-    const resetBtn = document.getElementById('reset-btn');
-    const pauseOverlay = document.getElementById('game-pause-overlay');
-    const winOverlay = document.getElementById('win-overlay');
-    const winText = document.getElementById('win-text');
-    const newGameBtn = document.getElementById('new-game-btn');
-    const musicVolumeSlider = document.getElementById('music-volume');
-    
-    // Game mode elements
-    const onePlayerBtn = document.getElementById('one-player-btn');
-    const twoPlayerBtn = document.getElementById('two-player-btn');
-    const difficultySelection = document.getElementById('difficulty-selection');
-    const easyBtn = document.getElementById('easy-btn');
-    const mediumBtn = document.getElementById('medium-btn');
-    const hardBtn = document.getElementById('hard-btn');
+/* Game container */
+.game-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
 
-    // Game state
-    let gameState = {
-        board: Array(9).fill(''),
-        currentPlayer: 'x',
-        isGameOver: false,
-        isPaused: false,
-        winner: null,
-        winningCombination: null,
-        isOnePlayerMode: true, // Default to one player mode
-        difficulty: 'medium', // Default difficulty level (easy, medium, hard)
-        // For the AI, player 'x' is human, 'o' is AI
-        humanPlayer: 'x',
-        aiPlayer: 'o'
-    };
+/* Game panel */
+.game-panel {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 0 30px rgba(0, 194, 255, 0.2),
+                inset 0 0 20px rgba(0, 194, 255, 0.1);
+    backdrop-filter: blur(5px);
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+}
 
-    // Winning combinations (indices of the board array)
-    const winningCombinations = [
-        [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
-        [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
-        [0, 4, 8], [2, 4, 6]             // Diagonals
-    ];
+.game-panel::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: conic-gradient(
+        transparent,
+        rgba(0, 194, 255, 0.1),
+        transparent 30%
+    );
+    animation: rotate 20s linear infinite;
+    z-index: -1;
+}
 
-    // Audio note mappings for game sounds
-    const notes = {
-        x: 'C5',
-        o: 'E5',
-        win: ['C4', 'E4', 'G4', 'C5'],
-        draw: ['E4', 'D4', 'C4'],
-        pause: 'G3',
-        resume: 'G4',
-        reset: 'C3'
-    };
+@keyframes rotate {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
 
-    // Background music pattern
-    let bgMusicPattern = [];
-    
-    // Initialize and start background music
-    function initBackgroundMusic() {
-        // Create a ambient futuristic music pattern
-        const chords = [
-            ["C4", "E4", "G4"],      // C major
-            ["A3", "C4", "E4"],      // A minor
-            ["F3", "A3", "C4"],      // F major
-            ["G3", "B3", "D4"]       // G major
-        ];
-        
-        // Create a repeating pattern with timing
-        const now = Tone.now();
-        let time = now;
-        
-        // Play a sequence of chords with timing to create ambient feeling
-        for (let i = 0; i < 16; i++) {
-            const chordIndex = i % chords.length;
-            // Schedule chord to play
-            backgroundMusic.triggerAttackRelease(chords[chordIndex], "2n", time);
-            time += 2;
-        }
-        
-        // Set up a loop to keep music going
-        Tone.Transport.scheduleRepeat((time) => {
-            // Randomly select chords for variation
-            const randomChord = chords[Math.floor(Math.random() * chords.length)];
-            backgroundMusic.triggerAttackRelease(randomChord, "2n", time);
-        }, "2n", now + 32); // Start after initial sequence
-        
-        // Start the Transport
-        Tone.Transport.start();
-    }
-    
-    // Control music volume
-    function handleVolumeChange(e) {
-        const volume = e.target.value;
-        // Convert slider value (0-100) to decibels (-60 to 0)
-        // -60dB is very quiet, 0dB is full volume
-        const db = volume === '0' ? -Infinity : -60 + (volume / 100 * 60);
-        backgroundMusic.volume.value = db;
-    }
-    
-    // Initialize the game
-    function initGame() {
-        updateBoard();
-        cells.forEach(cell => {
-            cell.addEventListener('click', handleCellClick);
-        });
-        
-        pauseBtn.addEventListener('click', pauseGame);
-        resumeBtn.addEventListener('click', resumeGame);
-        resetBtn.addEventListener('click', resetGame);
-        newGameBtn.addEventListener('click', resetGame);
-        
-        // Volume slider control
-        musicVolumeSlider.addEventListener('input', handleVolumeChange);
-        // Initialize volume from slider's default value
-        handleVolumeChange({ target: { value: musicVolumeSlider.value } });
-        
-        // Start background music when user interacts
-        document.body.addEventListener('click', function startAudio() {
-            // Initialize audio context on first click (browser requirement)
-            if (Tone.context.state !== 'running') {
-                Tone.context.resume();
-                initBackgroundMusic();
-                document.body.removeEventListener('click', startAudio);
-            }
-        }, { once: false });
-        
-        updateStatusMessage();
-    }
+/* Game header */
+.game-header {
+    margin-bottom: 30px;
+}
 
-    // Handle cell click
-    function handleCellClick(e) {
-        if (gameState.isGameOver || gameState.isPaused) return;
-        
-        const cellIndex = parseInt(e.target.getAttribute('data-index'));
-        
-        // Check if cell is already filled
-        if (gameState.board[cellIndex] !== '') return;
-        
-        // Update the game state
-        gameState.board[cellIndex] = gameState.currentPlayer;
-        
-        // Play sound for move
-        playSound(gameState.currentPlayer);
-        
-        // Check for winner
-        checkGameStatus();
-        
-        // Switch player if game is not over
-        if (!gameState.isGameOver) {
-            gameState.currentPlayer = gameState.currentPlayer === 'x' ? 'o' : 'x';
-        }
-        
-        // Update UI
-        updateBoard();
-        updateStatusMessage();
-    }
+.game-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 10px rgba(0, 194, 255, 0.5);
+}
 
-    // Update the game board UI based on game state
-    function updateBoard() {
-        cells.forEach((cell, index) => {
-            // Clear existing classes
-            cell.classList.remove('x', 'o');
-            
-            // Add class based on current state
-            if (gameState.board[index] !== '') {
-                cell.classList.add(gameState.board[index]);
-            }
-            
-            // Add highlight to winning cells
-            if (gameState.winningCombination && 
-                gameState.winningCombination.includes(index)) {
-                cell.classList.add('winning-cell');
-            } else {
-                cell.classList.remove('winning-cell');
-            }
-        });
-    }
+.title-x {
+    color: var(--x-color);
+    -webkit-text-fill-color: var(--x-color);
+    text-shadow: 0 0 10px rgba(255, 0, 124, 0.5);
+}
 
-    // Check if there's a winner or draw
-    function checkGameStatus() {
-        // Check for winner
-        for (const combo of winningCombinations) {
-            const [a, b, c] = combo;
-            if (gameState.board[a] && 
-                gameState.board[a] === gameState.board[b] && 
-                gameState.board[a] === gameState.board[c]) {
-                
-                gameState.isGameOver = true;
-                gameState.winner = gameState.currentPlayer;
-                gameState.winningCombination = combo;
-                
-                // Play win sound
-                playWinSound();
-                
-                // Show win animation
-                showWinScreen();
-                
-                return;
-            }
-        }
-        
-        // Check for draw
-        if (!gameState.board.includes('')) {
-            gameState.isGameOver = true;
-            gameState.winner = null; // Draw
-            
-            // Play draw sound
-            playDrawSound();
-            
-            // Update UI for draw
-            showDrawScreen();
-        }
-    }
+.title-o {
+    color: var(--o-color);
+    -webkit-text-fill-color: var(--o-color);
+    text-shadow: 0 0 10px rgba(0, 255, 163, 0.5);
+}
 
-    // Update status message
-    function updateStatusMessage() {
-        if (gameState.isGameOver) {
-            if (gameState.winner) {
-                if (gameState.isOnePlayerMode) {
-                    // In one-player mode, show "You Win!" or "AI Wins!"
-                    if (gameState.winner === gameState.humanPlayer) {
-                        statusMessage.innerHTML = `<span class="player-${gameState.winner}">You Win!</span>`;
-                    } else {
-                        statusMessage.innerHTML = `<span class="player-${gameState.winner}">AI Wins!</span>`;
-                    }
-                } else {
-                    // In two-player mode, show "Player X/O Wins!"
-                    statusMessage.innerHTML = `Player <span class="player-${gameState.winner}">${gameState.winner.toUpperCase()}</span> wins!`;
-                }
-            } else {
-                statusMessage.textContent = "It's a draw!";
-            }
-        } else {
-            if (gameState.isOnePlayerMode) {
-                // In one-player mode, show "Your Turn" or "AI's Turn"
-                if (gameState.currentPlayer === gameState.humanPlayer) {
-                    statusMessage.innerHTML = `<span class="player-${gameState.currentPlayer}">Your Turn</span>`;
-                } else {
-                    statusMessage.innerHTML = `<span class="player-${gameState.currentPlayer}">AI's Turn</span>`;
-                }
-            } else {
-                // In two-player mode, show "Player X/O's Turn"
-                statusMessage.innerHTML = `Player <span class="player-${gameState.currentPlayer}">${gameState.currentPlayer.toUpperCase()}</span>'s turn`;
-            }
-        }
-    }
+.title-t {
+    color: var(--accent-purple);
+    -webkit-text-fill-color: var(--accent-purple);
+    text-shadow: 0 0 10px rgba(192, 68, 236, 0.5);
+}
 
-    // Play sound for moves
-    function playSound(player) {
-        synth.triggerAttackRelease(notes[player], '0.1');
-    }
+/* Game mode selection */
+.mode-selection, .difficulty-selection {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 15px 0;
+}
 
-    // Play win sound sequence
-    function playWinSound() {
-        const now = Tone.now();
-        notes.win.forEach((note, i) => {
-            fxSynth.triggerAttackRelease(note, '0.2', now + i * 0.2);
-        });
-    }
+.mode-btn, .difficulty-btn {
+    padding: 8px 16px;
+    background: linear-gradient(45deg, rgba(21, 28, 46, 0.9), rgba(28, 39, 71, 0.9));
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
 
-    // Play draw sound sequence
-    function playDrawSound() {
-        const now = Tone.now();
-        notes.draw.forEach((note, i) => {
-            synth.triggerAttackRelease(note, '0.2', now + i * 0.2);
-        });
-    }
+.mode-btn i, .difficulty-btn i {
+    font-size: 0.9rem;
+}
 
-    // Show win animation
-    function showWinScreen() {
-        if (gameState.isOnePlayerMode) {
-            // In one-player mode, show "YOU WIN!" or "AI WINS!"
-            if (gameState.winner === gameState.humanPlayer) {
-                winText.innerHTML = `<span class="player-${gameState.winner}">YOU WIN!</span>`;
-                
-                // Show interstitial ad when human wins (50% chance)
-                if (Math.random() < 0.5) {
-                    showInterstitialAd();
-                }
-            } else {
-                winText.innerHTML = `<span class="player-${gameState.winner}">AI WINS!</span>`;
-            }
-        } else {
-            // In two-player mode, show "PLAYER X/O WINS!"
-            winText.innerHTML = `PLAYER <span class="player-${gameState.winner}">${gameState.winner.toUpperCase()}</span> WINS!`;
-            
-            // Show interstitial ad in two-player mode when game ends (40% chance)
-            if (Math.random() < 0.4) {
-                showInterstitialAd();
-            }
-        }
-        winOverlay.classList.remove('d-none');
-    }
+.mode-btn:hover, .difficulty-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 10px rgba(0, 194, 255, 0.4);
+}
 
-    // Show draw animation
-    function showDrawScreen() {
-        winText.textContent = "IT'S A DRAW!";
-        winOverlay.classList.remove('d-none');
-        
-        // Show interstitial ad when game ends in a draw (40% chance)
-        if (Math.random() < 0.4) {
-            showInterstitialAd();
-        }
-    }
+.selected-mode {
+    background: linear-gradient(45deg, var(--accent-blue), var(--accent-purple));
+    box-shadow: 0 0 15px rgba(0, 194, 255, 0.5);
+    border: none;
+}
 
-    // Pause the game
-    function pauseGame() {
-        if (gameState.isGameOver) return;
-        
-        gameState.isPaused = true;
-        pauseOverlay.classList.remove('d-none');
-        pauseBtn.disabled = true;
-        resumeBtn.disabled = false;
-        
-        // Play pause sound
-        synth.triggerAttackRelease(notes.pause, '0.2');
-        
-        // Pause background music
-        Tone.Transport.pause();
-        
-        // Lower volume for background effect
-        backgroundMusic.volume.rampTo(-30, 0.5);
-    }
+.selected-difficulty {
+    background: linear-gradient(45deg, var(--accent-green), var(--accent-blue));
+    box-shadow: 0 0 15px rgba(0, 255, 163, 0.5);
+    border: none;
+}
 
-    // Resume the game
-    function resumeGame() {
-        gameState.isPaused = false;
-        pauseOverlay.classList.add('d-none');
-        pauseBtn.disabled = false;
-        resumeBtn.disabled = true;
-        
-        // Play resume sound
-        synth.triggerAttackRelease(notes.resume, '0.2');
-        
-        // Resume background music
-        Tone.Transport.start();
-        
-        // Restore volume
-        backgroundMusic.volume.rampTo(-20, 0.5);
-    }
+.game-status {
+    font-size: 1.5rem;
+    margin-top: 15px;
+    padding: 10px;
+    background-color: rgba(10, 14, 23, 0.6);
+    border-radius: 8px;
+    border: 1px solid rgba(0, 194, 255, 0.2);
+}
 
-    // AI Move Functions
-    
-    // Make an AI move after a delay to make it seem like the AI is thinking
-    function makeAIMove() {
-        // If it's not AI's turn or game is over, don't make a move
-        if (gameState.currentPlayer !== gameState.aiPlayer || gameState.isGameOver || gameState.isPaused) return;
-        
-        // Add a slight delay to make it seem more natural (500-1500ms)
-        const thinkingTime = 500 + Math.random() * 1000;
-        
-        setTimeout(() => {
-            const bestMove = getBestMove();
-            
-            // Make the move
-            if (bestMove !== -1) {
-                gameState.board[bestMove] = gameState.aiPlayer;
-                
-                // Play sound for AI move
-                playSound(gameState.aiPlayer);
-                
-                // Check for winner
-                checkGameStatus();
-                
-                // Switch player if game is not over
-                if (!gameState.isGameOver) {
-                    gameState.currentPlayer = gameState.humanPlayer;
-                }
-                
-                // Update UI
-                updateBoard();
-                updateStatusMessage();
-            }
-        }, thinkingTime);
+/* Player indicators */
+.player-x {
+    color: var(--x-color);
+    font-weight: bold;
+    text-shadow: 0 0 8px var(--x-color);
+}
+
+.player-o {
+    color: var(--o-color);
+    font-weight: bold;
+    text-shadow: 0 0 8px var(--o-color);
+}
+
+/* Game board */
+.game-board {
+    display: flex;
+    flex-direction: column;
+    margin: 20px 0;
+    border-radius: 10px;
+    padding: 15px;
+    background-color: rgba(10, 14, 23, 0.8);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5),
+                inset 0 0 10px rgba(0, 194, 255, 0.1);
+}
+
+.grid-row {
+    display: flex;
+    justify-content: center;
+}
+
+.grid-cell {
+    width: 100px;
+    height: 100px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 3rem;
+    font-weight: bold;
+    font-family: 'Orbitron', sans-serif;
+    cursor: pointer;
+    position: relative;
+    margin: 5px;
+    background-color: rgba(21, 28, 46, 0.7);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.grid-cell:hover {
+    background-color: rgba(0, 194, 255, 0.1);
+    box-shadow: 0 0 15px rgba(0, 194, 255, 0.3);
+}
+
+/* X and O markers */
+.grid-cell.x::before,
+.grid-cell.x::after {
+    content: '';
+    position: absolute;
+    width: 80%;
+    height: 10px;
+    background-color: var(--x-color);
+    border-radius: 5px;
+    box-shadow: 0 0 10px var(--x-color), 0 0 20px var(--x-color);
+}
+
+.grid-cell.x::before {
+    transform: rotate(45deg);
+}
+
+.grid-cell.x::after {
+    transform: rotate(-45deg);
+}
+
+.grid-cell.o::before {
+    content: '';
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    border: 10px solid var(--o-color);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--o-color), inset 0 0 10px var(--o-color);
+}
+
+/* Game controls */
+.game-controls {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 30px;
+}
+
+/* Music controls */
+.music-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 20px;
+    padding: 10px;
+    background-color: rgba(10, 14, 23, 0.6);
+    border-radius: 8px;
+    border: 1px solid rgba(0, 194, 255, 0.2);
+    margin-bottom: 15px;
+}
+
+.music-controls label {
+    color: var(--accent-blue);
+    margin-bottom: 8px;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* AdMob container styling */
+.ad-container {
+    width: 100%;
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(21, 28, 46, 0.7);
+    border: 1px solid rgba(0, 194, 255, 0.2);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    text-align: center;
+}
+
+.music-controls i {
+    color: var(--accent-purple);
+}
+
+/* Custom range input styling for futuristic look */
+input[type="range"] {
+    width: 100%;
+    height: 6px;
+    -webkit-appearance: none;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+    border-radius: 5px;
+    outline: none;
+    padding: 0;
+    margin: 0;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    cursor: pointer;
+    box-shadow: 0 0 10px var(--accent-green);
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    transition: all 0.2s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 0 15px var(--accent-green);
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    cursor: pointer;
+    box-shadow: 0 0 10px var(--accent-green);
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    transition: all 0.2s ease;
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 0 15px var(--accent-green);
+}
+
+.control-btn {
+    padding: 8px 16px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    background-color: rgba(21, 28, 46, 0.9);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.control-btn:hover {
+    transform: translateY(-3px);
+}
+
+.control-btn:active {
+    transform: translateY(1px);
+}
+
+.control-btn i {
+    font-size: 0.85rem;
+}
+
+/* Game controls layout */
+.game-controls {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.pause-btn {
+    background: linear-gradient(45deg, #151c2e, #1c2747);
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 10px rgba(0, 194, 255, 0.3);
+}
+
+.pause-btn:hover {
+    background: linear-gradient(45deg, #1c2747, #233158);
+    box-shadow: 0 0 15px rgba(0, 194, 255, 0.5);
+}
+
+.resume-btn {
+    background: linear-gradient(45deg, #151c2e, #1c2747);
+    border-color: var(--accent-green);
+    box-shadow: 0 0 10px rgba(0, 255, 163, 0.3);
+}
+
+.resume-btn:hover:not([disabled]) {
+    background: linear-gradient(45deg, #1c2747, #233158);
+    box-shadow: 0 0 15px rgba(0, 255, 163, 0.5);
+}
+
+.resume-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.reset-btn {
+    background: linear-gradient(45deg, #151c2e, #1c2747);
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 10px rgba(192, 68, 236, 0.3);
+}
+
+.reset-btn:hover {
+    background: linear-gradient(45deg, #1c2747, #233158);
+    box-shadow: 0 0 15px rgba(192, 68, 236, 0.5);
+}
+
+.new-game-btn {
+    background: linear-gradient(45deg, var(--accent-blue), var(--accent-purple));
+    border: none;
+    color: white;
+    font-size: 0.95rem;
+    padding: 10px 20px;
+    margin-top: 20px;
+    box-shadow: 0 0 15px rgba(0, 194, 255, 0.5);
+}
+
+.new-game-btn:hover {
+    background: linear-gradient(45deg, var(--accent-purple), var(--accent-blue));
+    box-shadow: 0 0 20px rgba(0, 194, 255, 0.7);
+}
+
+/* Game Pause Overlay */
+.game-pause-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(10, 14, 23, 0.9);
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    border-radius: 16px;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+
+.game-pause-overlay:not(.d-none) {
+    opacity: 1;
+}
+
+.pause-message {
+    text-align: center;
+    animation: pulse 2s infinite;
+}
+
+.pause-message h2 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 3rem;
+    color: var(--accent-blue);
+    text-shadow: 0 0 15px var(--accent-blue);
+    margin-bottom: 20px;
+}
+
+.pause-message p {
+    font-size: 1.5rem;
+    color: var(--text-secondary);
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
     }
-    
-    // Get the best move for AI based on difficulty
-    function getBestMove() {
-        switch(gameState.difficulty) {
-            case 'easy':
-                return getEasyMove();
-            case 'medium':
-                return getMediumMove();
-            case 'hard':
-                return getHardMove();
-            default:
-                return getMediumMove();
-        }
+    50% {
+        transform: scale(1.05);
     }
-    
-    // Easy: Random available move
-    function getEasyMove() {
-        const availableMoves = [];
-        
-        // Find all empty cells
-        gameState.board.forEach((cell, index) => {
-            if (cell === '') {
-                availableMoves.push(index);
-            }
-        });
-        
-        // Return a random available move
-        if (availableMoves.length > 0) {
-            return availableMoves[Math.floor(Math.random() * availableMoves.length)];
-        }
-        
-        return -1; // No available moves
+    100% {
+        transform: scale(1);
     }
-    
-    // Medium: Block player from winning or make random move
-    function getMediumMove() {
-        // 70% chance to use the hard AI, 30% to use easy AI
-        if (Math.random() < 0.7) {
-            return getHardMove();
-        } else {
-            return getEasyMove();
-        }
+}
+
+/* Win overlay */
+.win-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(10, 14, 23, 0.85);
+    backdrop-filter: blur(5px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    border-radius: 16px;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+
+.win-overlay:not(.d-none) {
+    opacity: 1;
+}
+
+.win-message {
+    text-align: center;
+    z-index: 11;
+}
+
+.win-message h2 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.5rem;
+    background: linear-gradient(90deg, var(--accent-pink), var(--accent-purple), var(--accent-blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 30px;
+    animation: colorshift 3s infinite alternate;
+}
+
+@keyframes colorshift {
+    0% {
+        filter: hue-rotate(0deg) brightness(1);
     }
-    
-    // Hard: Minimax algorithm for optimal play
-    function getHardMove() {
-        // Try to take center first if available
-        if (gameState.board[4] === '') {
-            return 4;
-        }
-        
-        // Try to find a winning move
-        for (let i = 0; i < 9; i++) {
-            if (gameState.board[i] === '') {
-                gameState.board[i] = gameState.aiPlayer;
-                
-                if (checkWin(gameState.board, gameState.aiPlayer)) {
-                    gameState.board[i] = ''; // Reset the move
-                    return i;
-                }
-                
-                gameState.board[i] = ''; // Reset the move
-            }
-        }
-        
-        // Try to block player's winning move
-        for (let i = 0; i < 9; i++) {
-            if (gameState.board[i] === '') {
-                gameState.board[i] = gameState.humanPlayer;
-                
-                if (checkWin(gameState.board, gameState.humanPlayer)) {
-                    gameState.board[i] = ''; // Reset the move
-                    return i;
-                }
-                
-                gameState.board[i] = ''; // Reset the move
-            }
-        }
-        
-        // Take corners if available
-        const corners = [0, 2, 6, 8];
-        const availableCorners = corners.filter(corner => gameState.board[corner] === '');
-        
-        if (availableCorners.length > 0) {
-            return availableCorners[Math.floor(Math.random() * availableCorners.length)];
-        }
-        
-        // Take any available edge
-        const edges = [1, 3, 5, 7];
-        const availableEdges = edges.filter(edge => gameState.board[edge] === '');
-        
-        if (availableEdges.length > 0) {
-            return availableEdges[Math.floor(Math.random() * availableEdges.length)];
-        }
-        
-        // If no strategic moves, return any available move
-        return getEasyMove();
+    100% {
+        filter: hue-rotate(90deg) brightness(1.2);
     }
-    
-    // Helper function to check if a player has won
-    function checkWin(board, player) {
-        for (const combo of winningCombinations) {
-            const [a, b, c] = combo;
-            if (board[a] === player && board[a] === board[b] && board[a] === board[c]) {
-                return true;
-            }
-        }
-        return false;
+}
+
+/* Fireworks animation for win */
+.fireworks {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: -1;
+}
+
+.firework {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    box-shadow: 0 0 10px 5px var(--accent-purple);
+    animation: firework 2s infinite;
+}
+
+.firework:nth-child(1) {
+    top: 30%;
+    left: 30%;
+    box-shadow: 0 0 10px 5px var(--accent-pink);
+    animation-delay: 0.3s;
+}
+
+.firework:nth-child(2) {
+    top: 40%;
+    left: 60%;
+    box-shadow: 0 0 10px 5px var(--accent-blue);
+    animation-delay: 0.7s;
+}
+
+.firework:nth-child(3) {
+    top: 60%;
+    left: 40%;
+    box-shadow: 0 0 10px 5px var(--accent-green);
+    animation-delay: 1.1s;
+}
+
+@keyframes firework {
+    0% {
+        transform: scale(0);
+        opacity: 1;
     }
-    
-    // Handle Game Mode Selection
-    function setGameMode(mode) {
-        gameState.isOnePlayerMode = mode === 'one-player';
-        
-        // Update button styles
-        if (gameState.isOnePlayerMode) {
-            onePlayerBtn.classList.add('selected-mode');
-            twoPlayerBtn.classList.remove('selected-mode');
-            difficultySelection.style.display = 'flex';
-        } else {
-            onePlayerBtn.classList.remove('selected-mode');
-            twoPlayerBtn.classList.add('selected-mode');
-            difficultySelection.style.display = 'none';
-            
-            // Show interstitial ad when switching to two-player mode (25% chance)
-            if (Math.random() < 0.25) {
-                showInterstitialAd();
-            }
-        }
-        
-        // Reset the game with new mode
-        resetGame();
+    50% {
+        transform: scale(30);
+        opacity: 0.5;
     }
-    
-    // Handle Difficulty Selection
-    function setDifficulty(level) {
-        gameState.difficulty = level;
-        
-        // Update button styles
-        easyBtn.classList.remove('selected-difficulty');
-        mediumBtn.classList.remove('selected-difficulty');
-        hardBtn.classList.remove('selected-difficulty');
-        
-        switch(level) {
-            case 'easy':
-                easyBtn.classList.add('selected-difficulty');
-                break;
-            case 'medium':
-                mediumBtn.classList.add('selected-difficulty');
-                break;
-            case 'hard':
-                hardBtn.classList.add('selected-difficulty');
-                // Show interstitial ad when player selects hard difficulty (30% chance)
-                if (Math.random() < 0.3) {
-                    showInterstitialAd();
-                }
-                break;
-        }
-        
-        // Reset the game with new difficulty
-        resetGame();
+    100% {
+        transform: scale(0);
+        opacity: 0;
     }
-    
-    // Update handleCellClick to accommodate one-player mode
-    function handleCellClick(e) {
-        if (gameState.isGameOver || gameState.isPaused) return;
-        
-        // In one-player mode, only allow clicks if it's human's turn
-        if (gameState.isOnePlayerMode && gameState.currentPlayer !== gameState.humanPlayer) return;
-        
-        const cellIndex = parseInt(e.target.getAttribute('data-index'));
-        
-        // Check if cell is already filled
-        if (gameState.board[cellIndex] !== '') return;
-        
-        // Update the game state
-        gameState.board[cellIndex] = gameState.currentPlayer;
-        
-        // Play sound for move
-        playSound(gameState.currentPlayer);
-        
-        // Check for winner
-        checkGameStatus();
-        
-        // Switch player if game is not over
-        if (!gameState.isGameOver) {
-            gameState.currentPlayer = gameState.currentPlayer === 'x' ? 'o' : 'x';
-            
-            // If it's one-player mode and AI's turn, make AI move
-            if (gameState.isOnePlayerMode && gameState.currentPlayer === gameState.aiPlayer) {
-                updateBoard();
-                updateStatusMessage();
-                makeAIMove();
-                return;
-            }
-        }
-        
-        // Update UI
-        updateBoard();
-        updateStatusMessage();
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+    .game-title {
+        font-size: 2rem;
     }
     
-    // Reset the game
-    function resetGame() {
-        // Show interstitial ad randomly (about 30% of the time)
-        if (Math.random() < 0.3) {
-            showInterstitialAd();
-        }
-        
-        // Play reset sound
-        synth.triggerAttackRelease(notes.reset, '0.2');
-        
-        // Reset game state while preserving mode and difficulty settings
-        const prevMode = gameState.isOnePlayerMode;
-        const prevDifficulty = gameState.difficulty;
-        
-        gameState = {
-            board: Array(9).fill(''),
-            currentPlayer: 'x',
-            isGameOver: false,
-            isPaused: false,
-            winner: null,
-            winningCombination: null,
-            isOnePlayerMode: prevMode,
-            difficulty: prevDifficulty,
-            humanPlayer: 'x',
-            aiPlayer: 'o'
-        };
-        
-        // Reset UI
-        pauseOverlay.classList.add('d-none');
-        winOverlay.classList.add('d-none');
-        pauseBtn.disabled = false;
-        resumeBtn.disabled = true;
-        
-        // Update the board and status
-        updateBoard();
-        updateStatusMessage();
-        
-        // If one-player mode and AI starts first (not implemented here, both modes start with X)
-        // If we want to implement AI starting first, we would add that logic here
+    .grid-cell {
+        width: 80px;
+        height: 80px;
+        font-size: 2.5rem;
     }
     
-    // Initialize the game
-    function initGame() {
-        updateBoard();
-        
-        // Game board event listeners
-        cells.forEach(cell => {
-            cell.addEventListener('click', handleCellClick);
-        });
-        
-        // Game control event listeners
-        pauseBtn.addEventListener('click', pauseGame);
-        resumeBtn.addEventListener('click', resumeGame);
-        resetBtn.addEventListener('click', resetGame);
-        newGameBtn.addEventListener('click', resetGame);
-        
-        // Game mode event listeners
-        onePlayerBtn.addEventListener('click', () => setGameMode('one-player'));
-        twoPlayerBtn.addEventListener('click', () => setGameMode('two-player'));
-        
-        // Difficulty selection event listeners
-        easyBtn.addEventListener('click', () => setDifficulty('easy'));
-        mediumBtn.addEventListener('click', () => setDifficulty('medium'));
-        hardBtn.addEventListener('click', () => setDifficulty('hard'));
-        
-        // Set initial mode and difficulty UI state
-        setGameMode('one-player');
-        setDifficulty('medium');
-        
-        // Volume slider control
-        musicVolumeSlider.addEventListener('input', handleVolumeChange);
-        // Initialize volume from slider's default value
-        handleVolumeChange({ target: { value: musicVolumeSlider.value } });
-        
-        // Start background music when user interacts
-        document.body.addEventListener('click', function startAudio() {
-            // Initialize audio context on first click (browser requirement)
-            if (Tone.context.state !== 'running') {
-                Tone.context.resume();
-                initBackgroundMusic();
-                document.body.removeEventListener('click', startAudio);
-            }
-        }, { once: false });
-        
-        updateStatusMessage();
+    .mode-selection, .difficulty-selection {
+        flex-wrap: wrap;
     }
     
-    // Initialize the game
-    initGame();
-});
+    .game-controls {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+    }
+    
+    .control-btn {
+        font-size: 0.85rem;
+        padding: 6px 12px;
+    }
+
+    .grid-cell.o::before {
+        width: 45px;
+        height: 45px;
+        border-width: 8px;
+    }
+
+    .grid-cell.x::before,
+    .grid-cell.x::after {
+        width: 70%;
+        height: 8px;
+    }
+}
+
+@media (min-width: 577px) and (max-width: 768px) {
+    .grid-cell {
+        width: 90px;
+        height: 90px;
+    }
+}
